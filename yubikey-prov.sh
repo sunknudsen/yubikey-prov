@@ -8,7 +8,7 @@ basedir=$(dirname "$0")
 function dismount()
 {
   if [ -d "$veracrypt_encrypted_volume" ]; then
-    "$veracrypt" --text --dismount "$veracrypt_encrypted_volume"
+    "${veracrypt[@]}" --text --dismount "$veracrypt_encrypted_volume"
   fi
 }
 
@@ -124,9 +124,9 @@ fi
 
 # Set ykman variable (if applicable)
 if [ -f /home/amnesia/Persistent/yubikey-manager-qt.AppImage ]; then
-  ykman="/home/amnesia/Persistent/yubikey-manager-qt.AppImage ykman"
+  ykman=("/home/amnesia/Persistent/yubikey-manager-qt.AppImage" ykman)
 elif [ -f /Applications/YubiKey\ Manager.app/Contents/MacOS/ykman ]; then
-  ykman="/Applications/YubiKey Manager.app/Contents/MacOS/ykman"
+  ykman=("/Applications/YubiKey Manager.app/Contents/MacOS/ykman")
 else
   printf "$bold$red%s$normal\n" "Could not find YubiKey Manager binary"
   exit 1
@@ -134,9 +134,9 @@ fi
 
 # Set veracrypt variable (if applicable)
 if [ -f /home/amnesia/Persistent/veracrypt ]; then
-  veracrypt="sudo /home/amnesia/Persistent/veracrypt"
+  veracrypt=(sudo "/home/amnesia/Persistent/veracrypt")
 elif [ -f /Applications/VeraCrypt.app/Contents/MacOS/VeraCrypt ]; then
-  veracrypt="/Applications/VeraCrypt.app/Contents/MacOS/VeraCrypt"
+  veracrypt=("/Applications/VeraCrypt.app/Contents/MacOS/VeraCrypt")
 else
   printf "$bold$red%s$normal\n" "Could not find VeraCrypt binary"
   exit 1
@@ -158,7 +158,7 @@ wait_for_sd_card () {
   if [ -f "/media/amnesia/Data/tails" ]; then
     data_volume="/media/amnesia/Data"
     veracrypt_file="$data_volume/tails"
-    veracrypt_encrypted_volume="/media/amnesia/Tails"
+    veracrypt_encrypted_volume="/media/veracrypt1"
   elif [ -f "/Volumes/Data/tails" ]; then
     data_volume="/Volumes/Data"
     veracrypt_file="$data_volume/tails"
@@ -173,7 +173,7 @@ wait_for_sd_card
 
 # Wait for YubiKey to be inserted
 wait_for_yubikey () {
-  keys=$("$ykman" list)
+  keys=$("${ykman[@]}" list)
   if [ -z "$keys" ]; then
     printf "$bold%s$normal" "Insert YubiKey and press enter"
     read -r confirmation
@@ -185,12 +185,12 @@ wait_for_yubikey
 # Disable YubiKey configuration lock (if applicable)
 # See https://docs.yubico.com/software/yubikey/tools/ykman/Base_Commands.html
 if [ -n "$lock_code" ]; then
-  echo $lock_code | "$ykman" config set-lock-code --clear
+  echo $lock_code | "${ykman[@]}" config set-lock-code --clear
 fi
 
 # Confirm YubiKey OpenPGP applet reset
 reset_openpgp_applet () {
-  "$ykman" openpgp reset --force
+  "${ykman[@]}" openpgp reset --force
 }
 if [ "$yes" = true ]; then
   reset_openpgp_applet
@@ -210,7 +210,7 @@ else
 fi
 
 # Mount VeraCrypt encrypted volume
-"$veracrypt" --text --mount --pim "0" --keyfiles "" --protect-hidden "no" "$veracrypt_file" "$veracrypt_encrypted_volume"
+"${veracrypt[@]}" --text --mount --pim "0" --keyfiles "" --protect-hidden "no" "$veracrypt_file" "$veracrypt_encrypted_volume"
 
 # Reset terminal
 tput reset
@@ -281,17 +281,19 @@ gpg --list-keys
 printf "\n"
 
 # Make sure pgp directory exists
-mkdir -p "$data_volume/PGP"
-mkdir -p "$veracrypt_encrypted_volume/PGP"
+public_pgp_dir="$data_volume/PGP"
+mkdir -p "$public_pgp_dir"
+encrypted_pgp_dir="$veracrypt_encrypted_volume/PGP"
+mkdir -p "$encrypted_pgp_dir"
 
 # Backup PGP master key, subkeys and public key to VeraCrypt encrypted volume
 # See https://www.gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html#Operational-GPG-Commands
-gpg --armor --export-secret-keys $fingerprint > "$veracrypt_encrypted_volume/PGP/${user_id}_master.asc"
-gpg --armor --export-secret-subkeys $fingerprint > "$veracrypt_encrypted_volume/PGP/${user_id}_sub.asc"
-gpg --armor --export $fingerprint > "$veracrypt_encrypted_volume/PGP/${user_id}.asc"
+gpg --armor --export-secret-keys $fingerprint > "$encrypted_pgp_dir/${user_id}_master.asc"
+gpg --armor --export-secret-subkeys $fingerprint > "$encrypted_pgp_dir/${user_id}_sub.asc"
+gpg --armor --export $fingerprint > "$encrypted_pgp_dir/${user_id}.asc"
 
 # Copy PGP public key to “Data” volume
-cp "$veracrypt_encrypted_volume/PGP/${user_id}.asc" "$data_volume/PGP"
+cp "$encrypted_pgp_dir/${user_id}.asc" "$public_pgp_dir"
 
 # Copy subkeys to YubiKey
 # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
@@ -335,10 +337,10 @@ done
 for interface in ${disabled_nfc_interfaces[@]}; do
   nfc_arguments+=("--disable $interface")
 done
-"$ykman" config nfc ${nfc_arguments[@]} --force
+"${ykman[@]}" config nfc ${nfc_arguments[@]} --force
 
 # Wait for YubiKey to reboot
-sleep 1
+sleep 3
 
 # Configure YubiKey USB interfaces
 # See https://docs.yubico.com/software/yubikey/tools/ykman/Base_Commands.html#ykman-config-usb-options
@@ -351,20 +353,23 @@ done
 for interface in ${disabled_usb_interfaces[@]}; do
   usb_arguments+=("--disable $interface")
 done
-"$ykman" config usb ${usb_arguments[@]} --force
+"${ykman[@]}" config usb ${usb_arguments[@]} --force
+
+# Wait for YubiKey to reboot
+sleep 3
 
 # Enable YubiKey configuration lock (if applicable)
 # See https://docs.yubico.com/software/yubikey/tools/ykman/Base_Commands.html
 if [ -n "$lock_code" ]; then
-  echo $lock_code | "$ykman" config set-lock-code --force
+  echo $lock_code | "${ykman[@]}" config set-lock-code --force
 fi
 
 # Enable YubiKey user interaction
 # See https://docs.yubico.com/software/yubikey/tools/ykman/OpenPGP_Commands.html
-echo "12345678" | "$ykman" openpgp keys set-touch sig on --force
-echo "12345678" | "$ykman" openpgp keys set-touch enc on --force
-echo "12345678" | "$ykman" openpgp keys set-touch aut on --force
-echo "12345678" | "$ykman" openpgp keys set-touch att on --force
+echo "12345678" | "${ykman[@]}" openpgp keys set-touch sig on --force
+echo "12345678" | "${ykman[@]}" openpgp keys set-touch enc on --force
+echo "12345678" | "${ykman[@]}" openpgp keys set-touch aut on --force
+echo "12345678" | "${ykman[@]}" openpgp keys set-touch att on --force
 
 # Set user PIN
 # See https://www.gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html#Operational-GPG-Commands
@@ -387,13 +392,17 @@ printf "\n"
 # Show YubiKey info
 # See https://docs.yubico.com/software/yubikey/tools/ykman/Base_Commands.html#ykman-options-command-args
 printf "$bold%s$normal\n" "YubiKey info:"
-"$ykman" info
+"${ykman[@]}" info
 printf "\n"
+
+# Reboot YubiKey
+printf "$bold%s$normal" "Remove and insert YubiKey and press enter"
+read -r confirmation
 
 # Generate and back up user and admin PIN
 pin=$("$keepassxc_cli" diceware --words 5 --word-list "$basedir/eff_short_wordlist_1.txt" 2> /dev/null)
 admin_pin=$("$keepassxc_cli" diceware --words 5 --word-list "$basedir/eff_short_wordlist_1.txt" 2> /dev/null)
-cat << EOF > "$veracrypt_encrypted_volume/PGP/${user_id}.txt"
+cat << EOF > "$encrypted_pgp_dir/${user_id}.txt"
 Card status:
 $(gpg --card-status)
 
@@ -401,15 +410,25 @@ PGP pub key signatures:
 $(gpg --list-signatures $fingerprint)
 
 YubiKey info:
-$("$ykman" info)
+$("${ykman[@]}" info)
 
 User PIN: $pin
 Admin PIN: $admin_pin
 EOF
 
+# Confirm backup integrity
+if [ "$(uname)" = "Darwin" ]; then
+  open "$encrypted_pgp_dir"
+elif [[ "$(uname -a)" =~ amnesia ]]; then
+  xdg-open "$encrypted_pgp_dir"
+else
+  printf "$bold$red%s$normal\n" "Invalid operating system"
+  exit 1
+fi
+printf "$bold%s$normal" "Confirm backup integrity and press enter"
+read -r confirmation
+
 # Dismount VeraCrypt encrypted volume
 dismount
-
-echo -n "gpg --homedir $GNUPGHOME --change-pin" | pbcopy
 
 printf "%s\n" "Done"
