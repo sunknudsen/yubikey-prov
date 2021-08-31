@@ -40,9 +40,9 @@ while [ $# -gt 0 ]; do
     "  --email <email>      email" \
     "  --expiry <expiry>    subkey expiry (defaults to 1)" \
     "  --signing-key <path> sign public key using signing key (optional)" \
-    "  --nfc <nfc>          enabled NFC interfaces (defaults to \"FIDO2\")" \
-    "  --usb <usb>          enabled USB interfaces (defaults to \"FIDO2 OPENPGP\")" \
-    "  --lock-code <code>   config lock-code (optional)" \
+    "  --nfc <nfc>          enable NFC interfaces (defaults to \"FIDO2\")" \
+    "  --usb <usb>          enable USB interfaces (defaults to \"FIDO2 OPENPGP\")" \
+    "  --lock-code <code>   set lock-code (optional)" \
     "  --yes                disable confirmation prompts" \
     "  -h, --help           display help for command"
     exit 0

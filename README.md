@@ -2,6 +2,8 @@
 
 ## Provision PGP/YubiKeys
 
+This project was developed to securely provision and backup PGP keys and move subkeys to hardened YubiKey.
+
 ## Installation
 
 ```shell
@@ -20,9 +22,10 @@ Options:
   --last-name <name>   last name
   --email <email>      email
   --expiry <expiry>    subkey expiry (defaults to 1)
-  --nfc <nfc>          enabled NFC interfaces (defaults to "FIDO2")
-  --usb <usb>          enabled USB interfaces (defaults to "FIDO2 OPENPGP")
-  --lock-code <code>   config lock-code (optional)
+  --signing-key <path> sign public key using signing key (optional)
+  --nfc <nfc>          enable NFC interfaces (defaults to "FIDO2")
+  --usb <usb>          enable USB interfaces (defaults to "FIDO2 OPENPGP")
+  --lock-code <code>   set lock-code (optional)
   --yes                disable confirmation prompts
   -h, --help           display help for command
 ```
