@@ -195,7 +195,6 @@ reset_openpgp_applet () {
 if [ "$yes" = true ]; then
   reset_openpgp_applet
 else
-  printf "$bold%s$normal\n" "Reset YubiKey OpenPGP applet (y or n)?"
   printf \
     "$bold$red%s$normal\n" \
     "Resetting YubiKey OpenPGP applet will PERMANENTLY destroy all keys stored on device." \
