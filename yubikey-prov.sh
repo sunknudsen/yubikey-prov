@@ -395,7 +395,7 @@ printf "$bold%s$normal\n" "YubiKey info:"
 printf "\n"
 
 # Reboot YubiKey
-printf "$bold%s$normal" "Remove and insert YubiKey and press enter"
+printf "$bold%s$normal" "Remove and insert YubiKey, wait a few seconds and press enter"
 read -r confirmation
 
 # Generate and back up user and admin PIN
