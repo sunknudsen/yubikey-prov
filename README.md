@@ -54,7 +54,7 @@ Options:
 Create PGP master key and signing, encryption and authentication subkeys, sign pub key using signing key, backup keys to VeraCrypt encrypted volume and pub key to public folder, move subkeys to YubiKey, disable all YubiKey NFC/USB interfaces except FIDO2 and OpenPGP, enable YubiKey user interaction and set user and admin PINs.
 
 ```console
-$ yubikey-prov.sh --first-name "John" --last-name "Doe" --email "john@example.net" --signing-key "/media/veracrypt/PGP/signingkey.asc"
+$ yubikey-prov.sh --first-name "John" --last-name "Doe" --email "john@example.net" --signing-key "/media/veracrypt1/PGP/signingkey.asc"
 ```
 
 ## Contributors
