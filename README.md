@@ -12,9 +12,9 @@ Although script works on macOS Catalina and Big Sur (for development purposes), 
 
 ## Security features
 
-- Uses Tails to generate keys using air-gapped, amnesic and hardened operating system
-- Uses VeraCrypt to backup PGP master keys and subkeys
-- Uses YubiKeys to secure subkeys
+- Uses [Tails](https://tails.boum.org/) to generate PGP keys (using [GnuPG](https://gnupg.org/)) on air-gapped, amnesic and hardened operating system
+- Uses [VeraCrypt](https://www.veracrypt.fr/en/Home.html) to backup PGP master keys and subkeys
+- Uses [YubiKeys](https://www.yubico.com/) to secure subkeys
 
 ## Requirements
 
@@ -33,7 +33,7 @@ cd yubikey-prov
 ## Usage
 
 ```console
-$ yubikey-prov.sh --help
+$ ./yubikey-prov.sh --help
 Usage: yubikey-prov.sh [options]
 
 Options:
