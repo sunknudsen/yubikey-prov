@@ -598,14 +598,14 @@ fi
 printf "$bold%s$normal" "Confirm backup integrity, copy user PIN to clipboard and press enter"
 read -r confirmation
 
-# Test YubiKey OATH applet (if applicable)
+# Test YubiKey OATH applet (if enabled)
 # See https://docs.yubico.com/software/yubikey/tools/ykman/OATH_Commands.html#ykman-oath-accounts-list-options
 if [ "$oath_enabled" = true ]; then
   printf "$bold%s$normal\n" "Testing OATH applet…"
   "${ykman[@]}" oath accounts list
 fi
 
-# Test YubiKey OpenPGP applet (if applicable)
+# Test YubiKey OpenPGP applet (if enabled)
 # See https://www.gnupg.org/documentation/manpage.html
 if [ "$openpgp_enabled" = true ]; then
   printf "$bold%s$normal\n" "Testing OpenPGP applet…"
