@@ -19,7 +19,7 @@ Although script works on macOS Catalina and Big Sur (for development purposes), 
 ## Requirements
 
 - [Tails USB flash drive or SD card](https://sunknudsen.com/privacy-guides/how-to-install-tails-on-usb-flash-drive-or-sd-card-on-macos) with [VeraCrypt](https://sunknudsen.com/privacy-guides/how-to-install-and-use-veracrypt-on-tails) and [YubiKey Manager](https://sunknudsen.com/privacy-guides/how-to-generate-and-air-gap-pgp-private-keys-using-gnupg-tails-and-yubikey#step-3-import-dennis-fokins-and-emil-lundbergs-pgp-public-keys-used-to-verify-downloads-below) installed
-- VeraCrypt encrypted volume stored on USB flash drive or SD card at path `/Volumes/Data/tails`
+- VeraCrypt encrypted volume stored on USB flash drive or SD card at path `/media/amnesia/Data/tails` on Tails or `/Volumes/Data/tails` on macOS
 - YubiKey with [OpenPGP](https://www.yubico.com/us/store/compare/) support (firmware version 5.2.3 or higher)
 
 ## Installation (on Tails)
@@ -41,20 +41,21 @@ Options:
   --last-name <name>   last name
   --email <email>      email
   --expiry <expiry>    subkey expiry (defaults to 1)
-  --signing-key <path> sign public key using signing key (optional)
-  --nfc <nfc>          enable NFC interfaces (defaults to "FIDO2")
-  --usb <usb>          enable USB interfaces (defaults to "FIDO2 OPENPGP")
-  --lock-code <code>   set lock-code (optional)
+  --signing-key <path> signing key used to sign pub keys (optional)
+  --nfc <nfc>          enabled NFC applets (defaults to "FIDO2")
+  --usb <usb>          enabled USB applets (defaults to "FIDO2 OPENPGP")
+  --lock-code <code>   configuration lock-code (optional)
+  --reset              reset applets to factory defaults
   --yes                disable confirmation prompts
   -h, --help           display help for command
 ```
 
 ## Example
 
-Create PGP master key and signing, encryption and authentication subkeys, sign pub key using signing key, backup keys to VeraCrypt encrypted volume and pub key to public folder, move subkeys to YubiKey, disable all YubiKey NFC/USB interfaces except FIDO2 and OpenPGP, enable YubiKey user interaction and set user and admin PINs.
+Disable all YubiKey NFC/USB applets except FIDO2 and OpenPGP, create PGP master key and signing, encryption and authentication subkeys, sign pub key using signing key, back up master key and subkeys to VeraCrypt encrypted volume and pub key to public folder, move subkeys to YubiKey and configure identity, enable user interaction and set user and admin PINs.
 
 ```console
-$ yubikey-prov.sh --first-name "John" --last-name "Doe" --email "john@example.net" --signing-key "/media/veracrypt1/PGP/signingkey.asc"
+$ ./yubikey-prov.sh --first-name "John" --last-name "Doe" --email "john@example.net" --signing-key "/media/veracrypt1/securityteam/PGP/securityteam_master.asc"
 ```
 
 ## Contributors
