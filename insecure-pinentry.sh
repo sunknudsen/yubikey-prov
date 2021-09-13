@@ -7,9 +7,9 @@ if [ -z "$PINENTRY_USER_DATA" ]; then
   exit 1
 fi
 
-_IFS=IFS
+DEFAULT_IFS=IFS
 IFS="," user_data=($PINENTRY_USER_DATA)
-IFS=_IFS
+IFS=DEFAULT_IFS
 
 echo "OK"
 
