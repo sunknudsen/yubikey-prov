@@ -11,7 +11,7 @@ function dismount()
 }
 
 # Dismount VeraCrypt encrypted volume if script errors out or is interrupted
-trap dismount ERR INT
+trap dismount ERR EXIT INT
 
 # Set formatting variables
 bold=$(tput bold)
@@ -51,7 +51,12 @@ while [ $# -gt 0 ]; do
     "  --lock-code <code>   configuration lock-code (optional)" \
     "  --reset              reset applets to factory defaults" \
     "  --yes                disable confirmation prompts" \
+    "  -v, --version        display yubikey-prov version"
     "  -h, --help           display help for command"
+    exit 0
+    ;;
+    -v|--version)
+    printf "%s\n" "0.0.1"
     exit 0
     ;;
     --first-name)
@@ -129,7 +134,6 @@ if [ "$(uname)" = "Darwin" ] && [ "$yes" != true ]; then
   read -r answer
   if [ "$answer" != "y" ]; then
     printf "%s\n" "Cancelled"
-    dismount
     exit 0
   fi
 fi
@@ -237,7 +241,6 @@ if [ "$reset" = true ]; then
       reset_fido_applet
     else
       printf "%s\n" "Cancelled"
-      dismount
       exit 0
     fi
   fi
@@ -260,7 +263,6 @@ if [ "$reset" = true ]; then
       reset_oath_applet
     else
       printf "%s\n" "Cancelled"
-      dismount
       exit 0
     fi
   fi
@@ -283,7 +285,6 @@ if [ "$reset" = true ]; then
       reset_openpgp_applet
     else
       printf "%s\n" "Cancelled"
-      dismount
       exit 0
     fi
   fi
@@ -313,7 +314,6 @@ if [ "$reset" = true ]; then
       reset_otp_applet
     else
       printf "%s\n" "Cancelled"
-      dismount
       exit 0
     fi
   fi
@@ -336,7 +336,6 @@ if [ "$reset" = true ]; then
       reset_piv_applet
     else
       printf "%s\n" "Cancelled"
-      dismount
       exit 0
     fi
   fi
@@ -537,7 +536,6 @@ if [ -n "$lock_code" ]; then
     echo $lock_code | "${ykman[@]}" config set-lock-code --force
   else
     printf "%s\n" "Cancelled"
-    dismount
     exit 0
   fi
 fi
@@ -611,8 +609,5 @@ if [ "$openpgp_enabled" = true ]; then
   printf "$bold%s$normal\n" "Testing OpenPGP applet…"
   echo "foo" | gpg --pinentry-mode loopback --encrypt --sign --armor --recipient $fingerprint
 fi
-
-# Dismount VeraCrypt encrypted volume
-dismount
 
 printf "%s\n" "Done"
