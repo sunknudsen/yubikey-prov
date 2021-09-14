@@ -47,6 +47,7 @@ Options:
   --lock-code <code>   configuration lock-code (optional)
   --reset              reset applets to factory defaults
   --yes                disable confirmation prompts
+  -v, --version        display yubikey-prov version
   -h, --help           display help for command
 ```
 
