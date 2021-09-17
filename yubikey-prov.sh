@@ -394,12 +394,12 @@ done
 sleep 3
 
 # Check if OATH applet is enabled
-if [[ "$("${ykman[@]}" info | grep OATH)" =~ "Enabled" ]]; then
+if [[ "$("${ykman[@]}" info | grep OATH)" =~ Enabled ]]; then
   oath_enabled=true
 fi
 
 # Check if OpenPGP applet is enabled
-if [[ "$("${ykman[@]}" info | grep OpenPGP)" =~ "Enabled" ]]; then
+if [[ "$("${ykman[@]}" info | grep OpenPGP)" =~ Enabled ]]; then
   openpgp_enabled=true
 fi
 
@@ -412,11 +412,11 @@ fi
 # Configure OpenPGP applet (if enabled)
 if [ "$openpgp_enabled" = true ]; then
   # Create temp directory
-  tmp=$(mktemp -d)
+  temp=$(mktemp -d)
 
   # Configure GnuPG
   # See https://www.gnupg.org/documentation/manuals/gnupg/GPG-Configuration-Options.html
-  export GNUPGHOME="$tmp/.gnupg"
+  export GNUPGHOME="$temp/.gnupg"
   mkdir -p "$GNUPGHOME"
   chmod 700 "$GNUPGHOME"
   cat << EOF > "$GNUPGHOME/gpg.conf"
