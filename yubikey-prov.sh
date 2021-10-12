@@ -3,6 +3,7 @@
 set -e
 set -o pipefail
 
+# Dismount VeraCrypt encrypted volume
 function dismount()
 {
   if [ -d "$veracrypt_encrypted_volume" ]; then
@@ -44,19 +45,21 @@ while [ $# -gt 0 ]; do
     "  --first-name <name>  first name" \
     "  --last-name <name>   last name" \
     "  --email <email>      email" \
+    "  --recovery-mode      restore master key and subkeys (optional)" \
+    "  --rotate-credentials rotate credentials (recovery mode, optional)" \
     "  --expiry <expiry>    subkey expiry (defaults to 1)" \
-    "  --signing-key <path> signing key used to sign pub keys (optional)" \
+    "  --signing-key <path> path to signing key (optional)" \
+    "  --reset-applets      reset applets to factory defaults" \
     "  --nfc <nfc>          enabled NFC applets (defaults to \"FIDO2\")" \
     "  --usb <usb>          enabled USB applets (defaults to \"FIDO2 OPENPGP\")" \
     "  --lock-code <code>   configuration lock-code (optional)" \
-    "  --reset              reset applets to factory defaults" \
-    "  --yes                disable confirmation prompts" \
+    "  --yes                disable most confirmation prompts" \
     "  -v, --version        display yubikey-prov version" \
-    "  -h, --help           display help for command"
+    "  -h, --help           display yubikey-prov help"
     exit 0
     ;;
     -v|--version)
-    printf "%s\n" "0.0.1"
+    printf "%s\n" "0.0.2"
     exit 0
     ;;
     --first-name)
@@ -74,6 +77,14 @@ while [ $# -gt 0 ]; do
     shift
     shift
     ;;
+    --recovery-mode)
+    recovery_mode=true
+    shift
+    ;;
+    --rotate-credentials)
+    rotate_credentials=true
+    shift
+    ;;
     --expiry)
     expiry=$2
     shift
@@ -82,6 +93,10 @@ while [ $# -gt 0 ]; do
     --signing-key)
     signing_key=$2
     shift
+    shift
+    ;;
+    --reset-applets)
+    reset_applets=true
     shift
     ;;
     --nfc)
@@ -97,10 +112,6 @@ while [ $# -gt 0 ]; do
     --lock-code)
     lock_code=$2
     shift
-    shift
-    ;;
-    --reset)
-    reset=true
     shift
     ;;
     --yes)
@@ -121,9 +132,6 @@ if [ -z "$first_name" ] || [ -z "$last_name" ] || [ -z "$email" ]; then
   printf "$bold$red%s$normal\n" "Invalid first name, last name or email argument, see --help"
   exit 1
 fi
-
-# Set user_id variable
-user_id=$(echo -n "$first_name$last_name" | awk '{gsub (" ", "", $0); print tolower($0)}')
 
 # Confirm macOS usage
 if [ "$(uname)" = "Darwin" ] && [ "$yes" != true ]; then
@@ -168,20 +176,16 @@ else
   exit 1
 fi
 
-# Set pin and admin_pin variables
-pin=$("$keepassxc_cli" diceware --words 5 --word-list "$basedir/eff_short_wordlist_1.txt" 2> /dev/null)
-admin_pin=$("$keepassxc_cli" diceware --words 5 --word-list "$basedir/eff_short_wordlist_1.txt" 2> /dev/null)
-
 # Wait for SD card to be inserted
-wait_for_sd_card () {
-  # Set veracrypt_file and veracrypt_encrypted_volume variables
+function wait_for_sd_card () {
+  # Set veracrypt_encrypted_file and veracrypt_encrypted_volume variables
   if [ -f "/media/amnesia/Data/tails" ]; then
     data_volume="/media/amnesia/Data"
-    veracrypt_file="$data_volume/tails"
+    veracrypt_encrypted_file="$data_volume/tails"
     veracrypt_encrypted_volume="/media/veracrypt1"
   elif [ -f "/Volumes/Data/tails" ]; then
     data_volume="/Volumes/Data"
-    veracrypt_file="$data_volume/tails"
+    veracrypt_encrypted_file="$data_volume/tails"
     veracrypt_encrypted_volume="/Volumes/Tails"
   else
     printf "$bold%s$normal" "Insert SD card and press enter"
@@ -191,8 +195,61 @@ wait_for_sd_card () {
 }
 wait_for_sd_card
 
+# Set backup_dir variable
+backup_dir="$data_volume/backups"
+
+# Create backup (optional)
+printf \
+  "$bold%s$normal\n" \
+  "Do you wish to backup VeraCrypt encrypted file (y or n)?"
+read -r answer
+if [ "$answer" = "y" ]; then
+  # Create backup directory
+  mkdir -p "$backup_dir"
+  # Create copy of VeraCrypt encrypted file
+  cp "$veracrypt_encrypted_file" "$backup_dir/tails_$(date "+%F-%H%M%S")"
+fi
+
+# Mount VeraCrypt encrypted volume
+"${veracrypt[@]}" --text --mount --pim "0" --keyfiles "" --protect-hidden "no" "$veracrypt_encrypted_file" "$veracrypt_encrypted_volume"
+
+# Set user_id variable
+user_id=$(echo -n "$first_name$last_name" | awk '{gsub (" ", "", $0); print tolower($0)}')
+
+# Set encrypted_user_dir variable
+encrypted_user_dir="$veracrypt_encrypted_volume/$user_id"
+
+# Generate random passphrase
+function generate_passphrase() {
+  "$keepassxc_cli" diceware --words 5 --word-list "$basedir/eff_short_wordlist_1.txt" 2> /dev/null
+}
+
+# Set pin and admin_pin variables
+if [ "$recovery_mode" = true ]; then
+  # Check if user log exist
+  if [ ! -f "$encrypted_user_dir/${user_id}.txt" ]; then
+    printf "$bold$red%s$normal\n" "Could not find user log file"
+    exit 1
+  fi
+  if [ "$rotate_credentials" = true ]; then
+    # Set pin and admin_pin variables to random passphrases
+    pin=$(generate_passphrase)
+    admin_pin=$(generate_passphrase)
+  else
+    # Set pin and admin_pin variables to backed up passphrases
+    pin=$(cat "$encrypted_user_dir/${user_id}.txt" | grep "PGP user PIN" | awk -F ": " '{ print $2 }')
+    admin_pin=$(cat "$encrypted_user_dir/${user_id}.txt" | grep "PGP admin PIN" | awk -F ": " '{ print $2 }')
+  fi
+else
+  # Create user directory
+  mkdir -p "$encrypted_user_dir"
+  # Set pin and admin_pin variables to random passphrases
+  pin=$(generate_passphrase)
+  admin_pin=$(generate_passphrase)
+fi
+
 # Wait for YubiKey to be inserted
-wait_for_yubikey () {
+function wait_for_yubikey () {
   keys=$("${ykman[@]}" list)
   if [ -z "$keys" ]; then
     printf "$bold%s$normal" "Insert YubiKey and press enter"
@@ -209,7 +266,7 @@ if [ -n "$lock_code" ]; then
 fi
 
 # Reset YubiKey applets to factory defaults (if applicable)
-if [ "$reset" = true ]; then
+if [ "$reset_applets" = true ]; then
   # Enable all YubiKey applets over USB (required to reset applets to factory defaults)
   usb_arguments=()
   for interface in ${interfaces[@]}; do
@@ -221,7 +278,7 @@ if [ "$reset" = true ]; then
   sleep 3
 
   # Confirm YubiKey FIDO2 and FIDO U2F applet reset
-  reset_fido_applet () {
+  function reset_fido_applet () {
     # Reboot YubiKey
     printf "$bold%s$normal" "Remove and insert YubiKey and press enter"
     read -r confirmation
@@ -246,7 +303,7 @@ if [ "$reset" = true ]; then
   fi
 
   # Confirm YubiKey OATH applet reset
-  reset_oath_applet () {
+  function reset_oath_applet () {
     # Reset OATH applet
     # See https://docs.yubico.com/software/yubikey/tools/ykman/OATH_Commands.html#ykman-oath-reset-options
     "${ykman[@]}" oath reset --force
@@ -268,7 +325,7 @@ if [ "$reset" = true ]; then
   fi
 
   # Confirm YubiKey OpenPGP applet reset
-  reset_openpgp_applet () {
+  function reset_openpgp_applet () {
     # Reset OATH applet
     # See https://docs.yubico.com/software/yubikey/tools/ykman/OpenPGP_Commands.html#ykman-openpgp-reset-options
     "${ykman[@]}" openpgp reset --force
@@ -290,7 +347,7 @@ if [ "$reset" = true ]; then
   fi
 
   # Confirm YubiKey OTP applet reset
-  reset_otp_applet () {
+  function reset_otp_applet () {
     # Reset OTP applet
     # See https://docs.yubico.com/software/yubikey/tools/ykman/OTP_Commands.html#ykman-otp-delete-options-1-2
     # Check if OTP slot 1 needs to be deleted
@@ -319,7 +376,7 @@ if [ "$reset" = true ]; then
   fi
 
   # Confirm YubiKey PIV applet reset
-  reset_piv_applet () {
+  function reset_piv_applet () {
     # Reset OTP applet
     # See https://docs.yubico.com/software/yubikey/tools/ykman/PIV_Commands.html#ykman-piv-reset-options
     "${ykman[@]}" piv reset --force
@@ -341,11 +398,8 @@ if [ "$reset" = true ]; then
   fi
 fi
 
-# Set interfaces variable
-interfaces="FIDO2 HSMAUTH OATH OPENPGP OTP PIV U2F"
-
-# Function used to remove items $2 from list $1
-filter () {
+# Remove items $2 from list $1
+function filter() {
   array1=($1)
   array2=($2)
   for item in ${array2[@]}; do
@@ -361,9 +415,6 @@ disabled_nfc_applets=($(filter "$interfaces" "$nfc"))
 # Set enabled_usb_applets and disabled_usb_applets variables
 enabled_usb_applets=($usb)
 disabled_usb_applets=($(filter "$interfaces" "$usb"))
-
-# Mount VeraCrypt encrypted volume
-"${veracrypt[@]}" --text --mount --pim "0" --keyfiles "" --protect-hidden "no" "$veracrypt_file" "$veracrypt_encrypted_volume"
 
 # Configure YubiKey NFC applets
 # See https://docs.yubico.com/software/yubikey/tools/ykman/Base_Commands.html#ykman-config-nfc-options
@@ -424,34 +475,74 @@ keyid-format 0xlong
 with-fingerprint
 EOF
 
+  # Get PGP fingerprint
+  function get_pgp_fingerprint() {
+    # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
+    gpg --list-options show-only-fpr-mbox --list-secret-keys | awk '{print $1}'
+  }
+
   # See https://www.gnupg.org/documentation/manuals/gnupg/Agent-Options.html
   echo "pinentry-program $basedir/insecure-pinentry.sh" > "$GNUPGHOME/gpg-agent.conf"
 
-  # Create PGP master key
-  # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
-  gpg \
-    --batch \
-    --passphrase "" \
-    --quick-generate-key "$first_name $last_name <$email>" ed25519 cert 0
+  # Set encrypted_pgp_dir and public_pgp_dir variables
+  encrypted_pgp_dir="$encrypted_user_dir/PGP"
+  public_pgp_dir="$data_volume/PGP"
 
-  # Set PGP master key fingerprint variable
-  # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
-  fingerprint=$(gpg --list-options show-only-fpr-mbox --list-secret-keys | awk '{print $1}')
+  if [ "$recovery_mode" = true ]; then
+    # Import PGP master key
+    # See https://www.gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html#Operational-GPG-Commands
+    gpg --import "$encrypted_user_dir/PGP/${user_id}_master.asc"
 
-  # Create PGP subkeys
-  # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
-  gpg \
-    --batch \
-    --passphrase "" \
-    --quick-add-key $fingerprint ed25519 sign ${expiry}y
-  gpg \
-    --batch \
-    --passphrase "" \
-    --quick-add-key $fingerprint cv25519 encr ${expiry}y
-  gpg \
-    --batch \
-    --passphrase "" \
-    --quick-add-key $fingerprint ed25519 auth ${expiry}y
+    # Set PGP master key fingerprint variable
+    fingerprint=$(get_pgp_fingerprint)
+
+    # Trust PGP master key
+    # See https://www.gnupg.org/documentation/manuals/gnupg/GPG-Esoteric-Options.html
+    # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
+    echo -e "trust\n5\ny\nsave" | gpg \
+      --command-fd 0 \
+      --edit-key $fingerprint
+
+    # Extend expiry of subkeys
+    # See https://www.gnupg.org/documentation/manuals/gnupg/GPG-Esoteric-Options.html
+    # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
+    echo -e "key 1\nkey 2\nkey 3\nexpire\ny\n${expiry}y\ny\nsave" | gpg \
+      --command-fd 0 \
+      --edit-key $fingerprint
+  else
+    # Create PGP master key
+    # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
+    gpg \
+      --batch \
+      --passphrase "" \
+      --quick-generate-key "$first_name $last_name <$email>" ed25519 cert 0
+
+    # Set PGP master key fingerprint variable
+    fingerprint=$(get_pgp_fingerprint)
+
+    # Create PGP subkeys
+    # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
+    gpg \
+      --batch \
+      --passphrase "" \
+      --quick-add-key $fingerprint ed25519 sign ${expiry}y
+    gpg \
+      --batch \
+      --passphrase "" \
+      --quick-add-key $fingerprint cv25519 encr ${expiry}y
+    gpg \
+      --batch \
+      --passphrase "" \
+      --quick-add-key $fingerprint ed25519 auth ${expiry}y
+
+    # Create private PGP directory
+    mkdir -p "$encrypted_pgp_dir"
+
+    # Backup PGP master key and subkeys to VeraCrypt encrypted volume
+    # See https://www.gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html#Operational-GPG-Commands
+    gpg --armor --export-secret-keys $fingerprint > "$encrypted_pgp_dir/${user_id}_master.asc"
+    gpg --armor --export-secret-subkeys $fingerprint > "$encrypted_pgp_dir/${user_id}_sub.asc"
+  fi
 
   # Sign public key using signing key (if applicable)
   if [ -n "$signing_key" ]; then
@@ -462,6 +553,7 @@ EOF
     # See https://www.gnupg.org/documentation/manuals/gnupg-devel/Operational-GPG-Commands.html
     gpg --import "$signing_key"
     # Sign public key using signing key
+    # See https://www.gnupg.org/documentation/manuals/gnupg/GPG-Esoteric-Options.html
     # See https://www.gnupg.org/documentation/manuals/gnupg/GPG-Configuration-Options.html
     # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
     echo -e "3\ny" | gpg \
@@ -471,22 +563,17 @@ EOF
       --sign-key $fingerprint
   fi
 
-  # Make sure PGP directories exists
-  public_pgp_dir="$data_volume/PGP"
+  # Create public PGP directory
   mkdir -p "$public_pgp_dir"
-  encrypted_pgp_dir="$veracrypt_encrypted_volume/$user_id/PGP"
-  mkdir -p "$encrypted_pgp_dir"
 
-  # Backup PGP master key, subkeys and public key to VeraCrypt encrypted volume
-  # See https://www.gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html#Operational-GPG-Commands
-  gpg --armor --export-secret-keys $fingerprint > "$encrypted_pgp_dir/${user_id}_master.asc"
-  gpg --armor --export-secret-subkeys $fingerprint > "$encrypted_pgp_dir/${user_id}_sub.asc"
+  # Backup PGP public key to VeraCrypt encrypted volume
   gpg --armor --export $fingerprint > "$encrypted_pgp_dir/${user_id}.asc"
 
-  # Copy PGP public key to “Data” volume
+  # Copy PGP public key to Data volume
   cp "$encrypted_pgp_dir/${user_id}.asc" "$public_pgp_dir"
 
   # Copy subkeys to YubiKey
+  # See https://www.gnupg.org/documentation/manuals/gnupg/GPG-Esoteric-Options.html
   # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
   echo -e "key 1\nkeytocard\n1\nkey 1\nkey 2\nkeytocard\n2\nkey 2\nkey 3\nkeytocard\n3\nsave" | gpg \
     --command-fd 0 \
@@ -496,6 +583,7 @@ EOF
     3<<<"12345678"
 
   # Configure YubiKey OpenPGP applet identity
+  # See https://www.gnupg.org/documentation/manuals/gnupg/GPG-Esoteric-Options.html
   # See https://www.gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html#Operational-GPG-Commands
   echo -e "admin\nname\n$last_name\n$first_name\nlang\nen\nlogin\n$email\nquit" | gpg \
     --command-fd 0 \
@@ -512,12 +600,14 @@ EOF
   echo "12345678" | "${ykman[@]}" openpgp keys set-touch att on --force
 
   # Set user PIN
+  # See https://www.gnupg.org/documentation/manuals/gnupg/GPG-Esoteric-Options.html
   # See https://www.gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html#Operational-GPG-Commands
   echo -e "1\nq" | PINENTRY_USER_DATA="123456,$pin" gpg \
     --command-fd 0 \
     --change-pin
 
   # Set admin PIN
+  # See https://www.gnupg.org/documentation/manuals/gnupg/GPG-Esoteric-Options.html
   # See https://www.gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html#Operational-GPG-Commands
   echo -e "3\nq" | PINENTRY_USER_DATA="12345678,$admin_pin" gpg \
     --command-fd 0 \
@@ -543,10 +633,6 @@ fi
 # Reboot YubiKey
 printf "$bold%s$normal" "Remove and insert YubiKey and press enter"
 read -r confirmation
-
-# Make sure user directories exists
-encrypted_user_dir="$veracrypt_encrypted_volume/$user_id"
-mkdir -p "$encrypted_user_dir"
 
 # Create user log file
 # See https://docs.yubico.com/software/yubikey/tools/ykman/Base_Commands.html#ykman-info-options

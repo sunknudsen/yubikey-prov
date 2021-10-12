@@ -40,20 +40,22 @@ Options:
   --first-name <name>  first name
   --last-name <name>   last name
   --email <email>      email
+  --recovery-mode      restore master key and subkeys (optional)
+  --rotate-credentials rotate credentials (recovery mode, optional)
   --expiry <expiry>    subkey expiry (defaults to 1)
-  --signing-key <path> signing key used to sign pub keys (optional)
+  --signing-key <path> path to signing key (optional)
+  --reset-applets      reset applets to factory defaults
   --nfc <nfc>          enabled NFC applets (defaults to "FIDO2")
   --usb <usb>          enabled USB applets (defaults to "FIDO2 OPENPGP")
   --lock-code <code>   configuration lock-code (optional)
-  --reset              reset applets to factory defaults
-  --yes                disable confirmation prompts
+  --yes                disable most confirmation prompts
   -v, --version        display yubikey-prov version
-  -h, --help           display help for command
+  -h, --help           display yubikey-prov help
 ```
 
 ## Example
 
-Disable all YubiKey NFC/USB applets except FIDO2 and OpenPGP, create PGP master key and signing, encryption and authentication subkeys, sign pub key using signing key, back up master key and subkeys to VeraCrypt encrypted volume and pub key to public folder, move subkeys to YubiKey and configure identity, enable user interaction and set user and admin PINs.
+Disable all YubiKey NFC/USB applets except FIDO2 and OpenPGP (USB-only), create PGP master key and signing, encryption and authentication subkeys, sign public key using signing key, back up master key, subkeys and public key to VeraCrypt encrypted volume and public key to public folder, move subkeys to YubiKey and configure identity, enable user interaction and set user and admin PINs.
 
 ```console
 $ ./yubikey-prov.sh --first-name "John" --last-name "Doe" --email "john@example.net" --signing-key "/media/veracrypt1/securityteam/PGP/securityteam_master.asc"
