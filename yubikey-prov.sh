@@ -54,6 +54,13 @@ Options:
 EOF
 }
 
+# Helper function to derive handle from first and last name
+function derive_handle() {
+  local first_name="$1"
+  local last_name="$2"
+  echo -n "$first_name$last_name" | awk '{gsub (" ", "", $0); print tolower($0)}'
+}
+
 # Helper function to get PGP fingerprint
 function get_pgp_fingerprint() {
   # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
@@ -114,6 +121,28 @@ function import_pgp_secret_keys() {
     echo "Error: Failed to trust imported PGP secret keys" >&2
     exit 1
   fi
+}
+
+# Helper function to parse PGP secret keys and derive handle
+function parse_secret_keys_info() {
+  # Parse PGP secret keys
+  # See https://www.gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html
+
+  printf "${bold}%s${normal}\n" "Parsing PGP secret keys…"
+
+  user_id=$(gpg --list-packets $secret_keys  | grep 'user ID' | sed 's/.*"\(.*\)".*/\1/')
+
+  if [[ $user_id =~ ^([^\ ]+)\ ([^<]+)\ \<([^>]+)\>$ ]]; then
+    first_name="${BASH_REMATCH[1]}"
+    last_name="${BASH_REMATCH[2]}"
+    email="${BASH_REMATCH[3]}"
+  else
+    echo "Error: Failed to parse PGP secret keys" >&2
+    exit 1
+  fi
+
+  # Derive handle from first and last name
+  handle=$(derive_handle "$first_name" "$last_name")
 }
 
 # Helper function to export PGP public key
@@ -428,7 +457,7 @@ EOF
   fi
 
   # Derive handle from first and last name
-  handle=$(echo -n "$first_name$last_name" | awk '{gsub (" ", "", $0); print tolower($0)}')
+  handle=$(derive_handle "$first_name" "$last_name")
 
   # Create PGP key
   # See https://www.gnupg.org/documentation/manuals/gnupg/OpenPGP-Key-Management.html
@@ -556,20 +585,7 @@ EOF
 
   import_pgp_secret_keys
 
-  # Parse PGP secret keys
-
-  printf "${bold}%s${normal}\n" "Parsing PGP secret keys…"
-
-  user_id=$(gpg --list-packets $secret_keys  | grep 'user ID' | sed 's/.*"\(.*\)".*/\1/')
-
-  if [[ $user_id =~ ^([^\ ]+)\ ([^<]+)\ \<([^>]+)\>$ ]]; then
-    first_name="${BASH_REMATCH[1]}"
-    last_name="${BASH_REMATCH[2]}"
-    email="${BASH_REMATCH[3]}"
-  else
-    echo "Error: Failed to parse PGP secret keys" >&2
-    exit 1
-  fi
+  parse_secret_keys_info
 
   wait_for_yubikey
 
@@ -629,6 +645,8 @@ EOF
   prompt_and_validate_secret_keys
 
   import_pgp_secret_keys
+
+  parse_secret_keys_info
 
   # Extend expiry of PGP subkeys
   # See https://www.gnupg.org/documentation/manuals/gnupg/GPG-Esoteric-Options.html
